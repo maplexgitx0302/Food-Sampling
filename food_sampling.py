@@ -1,79 +1,27 @@
-# %%
-"""
-# No idea what to eat? Just sampling!
+"""Main script for food sampling.
 
-This python script allows you to sample a food choice
-    with corresponding weights.
+How to use?
+>> In your terminal, simply run with
+```bash
+python food_sampling.py
+```
+
+Where can I find the food options?
+>> All food options are stored in `food.json` file.
 """
 
-# %%
 from functools import reduce
-from getpass import getpass
-import json
+import os
 import random
 
-max_choices = 3
-print("\n# Welcome to food sampling!\n")
-
-# %%
-"""
-### Food options
-"""
-
-# %%
-# Read food json file.
-with open("food.json", "r") as json_file:
-    food_json = json.load(json_file)
-    food_list = []
-    for food in food_json.keys():
-        if "//" not in food:
-            food_list.append(food)
-    food_indices = range(len(food_list))
-
-# Turn into dictionary with food indices.
-option_dict = dict(enumerate(food_list))
+import food_funcions as ff
 
 
-def print_food_table():
-    print("# Table of food options:")
-    for index in food_indices:
-        food = option_dict[index]
-        print(f"* {index} -> {food}")
-
-
-print_food_table()
-
-# %%
-"""
-### Computing weights and sampling
-
-1. Compute weights from voting result.
-2. Sample `num_choices` options with weights.
-"""
-
-
-# %%
-class NumChoiceError(Exception):
-
-    def __init__(self, num_choices):
-        '''Too many choices.'''
-        error_message = (f"Over maximum number of choices -> "
-                         f"{num_choices} > {max_choices}")
-        super().__init__(error_message)
-
-
-class WrongIndexError(Exception):
-
-    def __init__(self, index):
-        '''Index does not exist.'''
-        error_message = f"Check your index -> {index}"
-        super().__init__(error_message)
-
-
-# %%
-# Rules and usage for voting.
 def print_info():
+    """Print rules and commands."""
+
     print()
+    print("# Welcome to food sampling!")
     print("# Start voting, e.g., 1 1 2 or 0 8 (seperate with spaces)")
     print("# Type '-1' to stop inputing.")
     print("# Type '-t' to show the food table again.")
@@ -82,128 +30,125 @@ def print_info():
     print("# Type '-72' to choose 72.")
 
 
-print_info()
+def clear_line(n=1):
+    """Clear n lines."""
+
+    for _ in range(n):
+        print('\033[1A\033[K', end='')
 
 
-def clear_line():
-    print('\033[1A\033[K', end='')
+def clear_all():
+    """Clear all."""
+
+    if os.name == "nt":
+        # Windows system.
+        def clear():
+            return os.system('cls')
+    else:
+        # Other unix-like systems
+        def clear():
+            return os.system('clear')
+
+    clear()
+
+
+# Prepare for a new vote.
+weights = []  # For storing votes.
+ielector = 1  # For elector (voter) counting.
+error_flag = False  # Detecting whether an error occurred.
+
+
+def init_vote():
+    """Function for initializing a new vote."""
+
+    # Reinitialize.
+    global weights, ielector, error_flag
+    weights = []
+    ielector = 1
+    error_flag = False
+
+    # Print information.
+    print_info()
+    print("\n ========= Voting Start ========= \n")
 
 
 # Start voting.
-weights = []
-ielector = 1
-print(" ========= Voting Start =========")
+init_vote()
+
 while True:
-    prompt = "(Voter " + str(ielector) + ") Vote for your choice: "
+    # Input prompt.
+    prompt = f"(Voter #{ielector}) Vote for your choice: "
     vote = input(prompt).lower()
-    clear_line()
+
+    # Clean up prints.
+    clear_line(n=1)
+    if error_flag:
+        clear_line(n=2)
+        error_flag = False
 
     if vote == "-1":
-        print(" ========= Voting Done  =========")
+        # Finish voting.
+        print(" ========= Voting Done  =========\n")
+        print(f"Total Electors: {ielector - 1}")
         break
 
     elif vote == "-t":
-        print_food_table()
+        # Print food option table.
+        ff.print_food_options()
+        print()
 
     elif vote == "-r":
-        weights = []
-        print_info()
+        # Restart a vnew vote.
+        clear_all()
+        init_vote()
 
     elif vote == "-z":
+        # Undo last vote.
         weights = weights[:-1]
+        ielector -= 1
 
     elif vote == "-72":
+        # Just eat 72!
         weights = [[0, 0, 0]]
         break
 
     else:
+        # Normal votes.
         try:
             vote = vote.split()
             vote = list(map(int, vote))
-
-            if len(vote) > max_choices:
-                raise NumChoiceError(len(vote))
-
-            for index in vote:
-                if index not in food_indices:
-                    raise WrongIndexError(index)
+            ff.check_vote_validity(vote)
 
         except Exception as e:
-            print(f"\n@@? {e}")
+            error_flag = True
+            print(f"ERROR: {e}\n")
 
         else:
             weights.append(vote)
-            print(' >> ' + str(ielector) + ' voted.')
             ielector += 1
 
-print("Total Electors: " + str(ielector - 1))
+
 # Calculating weights.
 if len(weights) == 0:
     print("\n# No weights specified -> uniform weights.")
-    weights = list(food_indices)
+    weights = list(ff.food_indices)
+
 else:
     weights = reduce(lambda x, y: x + y, weights)
+    weights.sort()
+
 print(f"\n# Total weights = {weights}\n")
-for index, food in option_dict.items():
+
+for index, food in ff.food_option_dict.items():
     num_votes = weights.count(index)
     if num_votes > 0:
         print(f"* {food} has {num_votes} vote(s).")
 
 # Samples.
-print("\n # Sampling result:")
+print("\n# Sampling result:")
 candidates = []
 while len(candidates) < min(3, len(set(weights))):
-    sample = option_dict[random.sample(weights, k=1)[0]]
+    sample = ff.food_option_dict[random.sample(weights, k=1)[0]]
     if sample not in candidates:
         candidates.append(sample)
         print(f"* Number {len(candidates)} food candidate is {sample}")
-
-# %%
-"""
-### Check the functionality of `random.sample`
-
-Only executes when using Jupyter Notebook, i.e., `ipynb` files.
-"""
-
-# %%
-try:
-    # Jupyter Notebook raises "NameError", plot only when using `ipynb`.
-    __file__
-
-except NameError:
-    # Import plotting packages.
-    import pandas as pd
-    import seaborn as sns
-    sns.set_theme()
-
-    # Randomly sampling.
-    samples = [random.sample(weights, k=1)[0] for _ in range(1000)]
-
-    # Pandas Data Frame.
-    df = pd.concat([
-        pd.DataFrame({
-            "Source": ["Weights"] * len(weights),
-            "Value": weights
-        }),
-        pd.DataFrame({
-            "Source": ["Samples"] * len(samples),
-            "Value": samples
-        }),
-    ])
-
-    # Histogram of "Weights" and "Samples".
-    hist = sns.histplot(
-        data=df,
-        x="Value",  # 0, 1, 2, 3, ... -> food_indices
-        hue="Source",  # Plot histograms respect to "Weights" or "Samples".
-        bins=food_indices,  # Equivalent to number of food_indices.
-        multiple="dodge",  # Seperate 2 histograms instead of overlapping them.
-        stat="probability",  # Normalize histograms.
-        common_norm=False,  # Normalize seperately for 2 histograms.
-        shrink=0.8,  # Make bins not too close together.
-    )
-    hist.set(title="Comparing weights and samples")
-
-else:
-    # Skip plotting when only run with `py` scripts.
-    pass

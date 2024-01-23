@@ -1,4 +1,7 @@
-{
+{   
+    "// Variables start with prefix '_'": "",
+        "_max_choices": 3,
+
     "// 新生南路": "",
         "柒食貳": "",
         "肯德基": "",
